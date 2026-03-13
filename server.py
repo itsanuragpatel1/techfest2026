@@ -428,6 +428,7 @@ def dashboard():
     html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
     return send_file(html_path)
 
+print("test")
 
 # ─── MAIN ─────────────────────────────────────────────────────
 if __name__ == "__main__":
