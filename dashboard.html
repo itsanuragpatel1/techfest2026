@@ -3,383 +3,294 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ESP32 Tracker</title>
+<title>ESP32 TRACKER — 12951 Rajdhani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;900&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-
-:root {
-  --bg:     #060a0f;
-  --panel:  #0a1018;
-  --border: #142030;
-  --cyan:   #00e5ff;
-  --green:  #00ff88;
-  --yellow: #ffdd00;
-  --red:    #ff3355;
-  --orange: #ff8800;
-  --dim:    #1a2a3a;
-  --text:   #8ab8d0;
-  --mono:   'Share Tech Mono', monospace;
-  --orbit:  'Orbitron', sans-serif;
+:root{
+  --bg:#060a0f;--panel:#0a1018;--panel2:#0d1520;
+  --border:#142030;--border2:#1e3040;
+  --cyan:#00e5ff;--green:#00ff88;--yellow:#ffdd00;
+  --red:#ff3355;--orange:#ff8800;--blue:#4488ff;--purple:#bb88ff;
+  --dim:#1a2a3a;--text:#8ab8d0;--text2:#5a8aa0;
+  --mono:'Share Tech Mono',monospace;--orbit:'Orbitron',sans-serif;
 }
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden;}
 
-* { margin:0; padding:0; box-sizing:border-box; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--mono);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* Grid noise texture */
-body::after {
-  content:'';
-  position:fixed; inset:0;
-  background-image:
-    linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events:none;
-  z-index:0;
-}
-
+/* Grid texture */
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,229,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,255,.025) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;z-index:0;}
 /* Scanlines */
-body::before {
-  content:'';
-  position:fixed; inset:0;
-  background: repeating-linear-gradient(
-    0deg, transparent, transparent 3px,
-    rgba(0,229,255,.012) 3px, rgba(0,229,255,.012) 4px
-  );
-  pointer-events:none;
-  z-index:9999;
-}
+body::before{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,229,255,.01) 3px,rgba(0,229,255,.01) 4px);
+  pointer-events:none;z-index:9999;}
 
-/* ── HEADER ─────────────────────────────────────── */
-header {
-  position:relative; z-index:10;
-  padding: 16px 28px;
-  border-bottom: 1px solid var(--border);
-  display:flex; align-items:center; justify-content:space-between;
-  background: rgba(0,229,255,.04);
-}
-.logo {
-  font-family: var(--orbit);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--cyan);
-  letter-spacing: 4px;
-  text-shadow: 0 0 20px rgba(0,229,255,.5);
-}
-.logo sub { font-size: 9px; opacity:.5; font-family: var(--mono); font-weight:400; }
-.pill {
-  font-size: 10px;
-  padding: 4px 14px;
-  border-radius: 2px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  border: 1px solid;
-  transition: all .4s;
-}
-.pill.live   { color:var(--green);  border-color:var(--green);  background:rgba(0,255,136,.08); }
-.pill.wait   { color:var(--yellow); border-color:var(--yellow); background:rgba(255,221,0,.08); }
-.pill.dead   { color:var(--red);    border-color:var(--red);    background:rgba(255,51,85,.08); }
+/* ── HEADER ── */
+header{position:relative;z-index:10;padding:14px 28px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;background:rgba(0,229,255,.03);}
+.logo{font-family:var(--orbit);font-size:13px;font-weight:900;color:var(--cyan);
+  letter-spacing:5px;text-shadow:0 0 24px rgba(0,229,255,.5);}
+.logo span{font-size:9px;opacity:.35;font-family:var(--mono);font-weight:400;margin-left:8px;letter-spacing:2px;}
+.hdr-right{display:flex;gap:12px;align-items:center;}
+.ts-disp{font-size:10px;opacity:.3;letter-spacing:1px;}
+.health-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);
+  box-shadow:0 0 6px var(--dim);transition:all .4s;}
+.health-dot.ok{background:var(--green);box-shadow:0 0 10px var(--green);}
+.health-dot.err{background:var(--red);box-shadow:0 0 10px var(--red);}
+.pill{font-size:9px;padding:4px 14px;border-radius:2px;letter-spacing:3px;
+  text-transform:uppercase;border:1px solid;transition:all .4s;}
+.pill.live{color:var(--green);border-color:var(--green);background:rgba(0,255,136,.07);}
+.pill.wait{color:var(--yellow);border-color:var(--yellow);background:rgba(255,221,0,.07);}
+.pill.dead{color:var(--red);border-color:var(--red);background:rgba(255,51,85,.07);}
 
-/* ── TRACK VISUALIZER ───────────────────────────── */
-.track-section {
-  position:relative; z-index:1;
-  padding: 24px 28px 12px;
-}
-.section-label {
-  font-size:10px; letter-spacing:3px; text-transform:uppercase;
-  opacity:.4; margin-bottom:10px;
-}
-.track-wrap {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  height: 120px;
-  position: relative;
-  overflow: hidden;
-}
+/* ── CONFIG BAR ── */
+.cfg-bar{position:relative;z-index:1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:9px 28px;border-bottom:1px solid var(--border);background:rgba(0,229,255,.015);font-size:10px;letter-spacing:2px;}
+.cfg-bar label{opacity:.3;text-transform:uppercase;white-space:nowrap;}
+.cfg-inp,.cfg-sel{background:#080e14;border:1px solid var(--dim);color:var(--cyan);
+  font-family:var(--mono);font-size:10px;padding:4px 8px;outline:none;cursor:pointer;letter-spacing:1px;}
+.cfg-inp{width:200px;color:var(--text);}
+.cfg-inp:focus{border-color:var(--cyan);color:var(--cyan);}
+.btn{background:none;border:1px solid var(--dim);color:var(--text2);font-family:var(--mono);
+  font-size:9px;padding:4px 12px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:all .3s;}
+.btn:hover{border-color:var(--cyan);color:var(--cyan);}
+.btn.danger{border-color:#3a1020;}
+.btn.danger:hover{border-color:var(--red);color:var(--red);}
+.btn.accent{border-color:var(--border2);color:var(--green);}
+.btn.accent:hover{border-color:var(--green);}
+.cfg-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+#pkt-count{font-size:9px;opacity:.2;letter-spacing:1px;}
 
-/* The rail line */
-.track-wrap::after {
-  content:'';
-  position:absolute;
-  top:50%; left:20px; right:20px;
-  height:2px;
-  background: linear-gradient(90deg,
-    transparent, var(--dim) 5%, var(--dim) 95%, transparent);
-  transform:translateY(-50%);
-}
+/* ── SECTION LABEL ── */
+.slabel{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.3;margin-bottom:10px;}
 
-/* Tick marks on rail */
-.rail-ticks {
-  position:absolute;
-  top:50%; left:20px; right:20px;
-  display:flex; justify-content:space-between;
-  transform:translateY(-50%);
-  z-index:1;
-}
-.tick {
-  width:1px; height:10px;
-  background: var(--dim);
-  position:relative;
-}
-.tick span {
-  position:absolute;
-  top:14px; left:50%;
-  transform:translateX(-50%);
-  font-size:8px; white-space:nowrap;
-  opacity:.3;
-}
+/* ── TRAIN ROUTE ── */
+.route-section{position:relative;z-index:1;padding:20px 28px 8px;}
+.route-wrap{background:var(--panel);border:1px solid var(--border);padding:20px 28px 16px;position:relative;}
+.route-track{position:relative;height:4px;background:var(--dim);margin:30px 0 40px;}
+.route-track::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,var(--border2) 4%,var(--border2) 96%,transparent);}
+.route-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));
+  transition:width .6s ease;box-shadow:0 0 8px rgba(0,229,255,.4);}
+.station-dot{position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:10px;height:10px;border-radius:50%;border:2px solid var(--dim);background:var(--bg);
+  transition:all .4s;z-index:2;}
+.station-dot.passed{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+.station-dot.current{border-color:var(--green);background:var(--green);
+  box-shadow:0 0 14px var(--green);animation:pulse 1.5s ease-in-out infinite;}
+.station-label{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  font-size:8px;white-space:nowrap;letter-spacing:1px;opacity:.4;text-align:center;
+  transition:all .4s;}
+.station-label.passed,.station-label.current{opacity:.8;}
+.station-dist{position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);
+  font-size:7px;white-space:nowrap;opacity:.25;letter-spacing:1px;}
+.train-dot{position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:18px;height:18px;border-radius:50%;background:var(--cyan);z-index:10;
+  box-shadow:0 0 16px var(--cyan),0 0 40px rgba(0,229,255,.3);
+  transition:left .6s linear;}
+.route-info{display:flex;justify-content:space-between;font-size:9px;opacity:.25;letter-spacing:1px;margin-top:4px;}
 
-/* Moving dot */
-#obj-dot {
-  position:absolute;
-  top:50%; width:16px; height:16px;
-  border-radius:50%;
-  background: var(--cyan);
-  box-shadow: 0 0 12px var(--cyan), 0 0 30px rgba(0,229,255,.4);
-  transform:translate(-50%, -50%);
-  left: 20px;  /* updated by JS */
-  transition: left .4s linear;
-  z-index:10;
-}
+@keyframes pulse{0%,100%{box-shadow:0 0 8px var(--green);}50%{box-shadow:0 0 20px var(--green),0 0 40px rgba(0,255,136,.3);}}
 
-/* Trail canvas */
-#trail-canvas {
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  z-index:5;
-}
+/* ── SPEED GAUGE ── */
+.gauge-section{position:relative;z-index:1;padding:12px 28px;}
+.gauge-inner{background:var(--panel);border:1px solid var(--border);padding:16px 20px;
+  display:flex;align-items:center;gap:20px;}
+.spd-big{font-family:var(--orbit);font-size:36px;color:var(--cyan);min-width:100px;
+  text-shadow:0 0 16px rgba(0,229,255,.6);line-height:1;}
+.spd-big sub{font-size:12px;opacity:.4;margin-left:4px;}
+.gauge-bar-col{flex:1;}
+.gauge-bar-wrap{height:8px;background:var(--dim);position:relative;overflow:hidden;margin-bottom:6px;}
+.gauge-bar-fill{height:100%;width:0%;
+  background:linear-gradient(90deg,var(--green),var(--cyan) 50%,var(--yellow));
+  transition:width .3s ease;box-shadow:0 0 8px rgba(0,229,255,.3);}
+.gauge-meta{display:flex;justify-content:space-between;font-size:9px;opacity:.3;letter-spacing:1px;}
+.uptime-disp{font-size:10px;opacity:.3;min-width:100px;text-align:right;letter-spacing:1px;}
 
-.track-labels {
-  display:flex; justify-content:space-between;
-  padding: 6px 20px 0;
-  font-size:9px; opacity:.25; letter-spacing:1px;
-}
+/* ── CARDS ── */
+.cards{position:relative;z-index:1;display:grid;
+  grid-template-columns:repeat(4,1fr);gap:10px;padding:0 28px 0;}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(4,1fr);}}
+@media(max-width:700px){.cards{grid-template-columns:1fr 1fr;}}
+.card{background:var(--panel);border:1px solid var(--border);
+  border-top-width:2px;padding:14px 16px;position:relative;overflow:hidden;transition:border-color .3s;}
+.card:hover{border-color:var(--border2);}
+.card.c-pos{border-top-color:var(--cyan);}
+.card.c-gps{border-top-color:var(--purple);}
+.card.c-volt{border-top-color:var(--blue);}
+.card.c-curr{border-top-color:var(--yellow);}
+.card.c-pwr{border-top-color:var(--orange);}
+.card.c-draw{border-top-color:var(--red);}
+.card.c-gen{border-top-color:var(--green);}
+.card.c-energy{border-top-color:#aa44ff;}
+.card-lbl{font-size:8px;letter-spacing:2px;text-transform:uppercase;opacity:.3;margin-bottom:8px;}
+.card-val{font-family:var(--orbit);font-size:22px;line-height:1;color:#fff;word-break:break-all;}
+.card-val.c-pos{color:var(--cyan);text-shadow:0 0 10px rgba(0,229,255,.4);}
+.card-val.c-gps{color:var(--purple);text-shadow:0 0 10px rgba(187,136,255,.4);font-size:13px;line-height:1.6;}
+.card-val.c-volt{color:var(--blue);text-shadow:0 0 10px rgba(68,136,255,.4);}
+.card-val.c-curr{color:var(--yellow);text-shadow:0 0 10px rgba(255,221,0,.4);}
+.card-val.c-pwr{color:var(--orange);text-shadow:0 0 10px rgba(255,136,0,.4);}
+.card-val.c-draw{color:var(--red);text-shadow:0 0 10px rgba(255,51,85,.4);}
+.card-val.c-gen{color:var(--green);text-shadow:0 0 10px rgba(0,255,136,.4);}
+.card-val.c-energy{color:#bb66ff;text-shadow:0 0 10px rgba(170,68,255,.4);}
+.card-unit{font-size:10px;opacity:.35;font-family:var(--mono);margin-left:2px;}
+.card-sub{font-size:9px;opacity:.25;margin-top:5px;letter-spacing:.5px;}
 
-/* ── SPEED GAUGE ────────────────────────────────── */
-.gauge-row {
-  position:relative; z-index:1;
-  padding: 8px 28px 0;
-  display:flex; align-items:center; gap:16px;
-}
-.gauge-bar-wrap {
-  flex:1;
-  height:6px;
-  background: var(--dim);
-  position:relative;
-  overflow:hidden;
-}
-.gauge-bar-fill {
-  height:100%;
-  width:0%;
-  background: linear-gradient(90deg, var(--green), var(--cyan), var(--yellow));
-  transition: width .3s ease;
-  box-shadow: 0 0 8px rgba(0,229,255,.4);
-}
-.speed-label {
-  font-family: var(--orbit);
-  font-size:24px;
-  color: var(--cyan);
-  min-width:80px;
-  text-align:right;
-  text-shadow: 0 0 12px rgba(0,229,255,.6);
-}
-.speed-unit { font-size:10px; opacity:.4; }
+/* ── SECOND CARDS ROW ── */
+.cards2{position:relative;z-index:1;display:grid;
+  grid-template-columns:repeat(4,1fr);gap:10px;padding:10px 28px 0;}
+@media(max-width:700px){.cards2{grid-template-columns:1fr 1fr;}}
 
-/* ── METRIC CARDS ───────────────────────────────── */
-.cards {
-  position:relative; z-index:1;
-  display:grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap:12px;
-  padding: 20px 28px;
-}
-@media(max-width:900px) { .cards { grid-template-columns:repeat(3,1fr); } }
-@media(max-width:560px) { .cards { grid-template-columns:1fr 1fr; } }
+/* ── CHARTS ── */
+.charts{position:relative;z-index:1;display:grid;
+  grid-template-columns:1fr 1fr;gap:10px;padding:12px 28px 0;}
+@media(max-width:700px){.charts{grid-template-columns:1fr;}}
+.chart-box{background:var(--panel);border:1px solid var(--border);padding:14px 16px;}
+.chart-title{font-size:8px;letter-spacing:3px;text-transform:uppercase;
+  opacity:.3;margin-bottom:10px;display:flex;justify-content:space-between;}
+.chart-title span{opacity:.6;font-family:var(--orbit);font-size:10px;}
+canvas.mini{width:100%!important;height:80px!important;display:block;}
 
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  padding: 18px 16px;
-  position:relative;
-  overflow:hidden;
-}
-.card::before {
-  content:''; position:absolute;
-  top:0; left:0; right:0; height:1px;
-}
-.card.c-pos  ::before { background:var(--cyan);   }
-.card.c-dist ::before { background:var(--green);  }
-.card.c-volt ::before { background:var(--blue);   }
-.card.c-curr ::before { background:var(--yellow); }
-.card.c-pwr  ::before { background:var(--orange); }
+/* ── STATS PANEL ── */
+.stats-section{position:relative;z-index:1;padding:12px 28px 0;}
+.stats-grid{background:var(--panel);border:1px solid var(--border);padding:16px 20px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:0;}
+@media(max-width:700px){.stats-grid{grid-template-columns:1fr;}}
+.stat-block{padding:12px 16px;border-right:1px solid var(--border);}
+.stat-block:last-child{border-right:none;}
+.stat-block-title{font-size:8px;letter-spacing:3px;opacity:.3;text-transform:uppercase;margin-bottom:10px;}
+.stat-row{display:flex;justify-content:space-between;font-size:9px;padding:3px 0;border-bottom:1px solid rgba(20,32,48,.5);}
+.stat-row:last-child{border-bottom:none;}
+.stat-k{opacity:.35;letter-spacing:1px;}
+.stat-v{color:var(--cyan);font-family:var(--orbit);font-size:9px;}
 
-.card::before { background:var(--dim); }
-.card.c-pos  { border-top-color:var(--cyan);   }
-.card.c-dist { border-top-color:var(--green);  }
-.card.c-volt { border-top-color: #4488ff;      }
-.card.c-curr { border-top-color:var(--yellow); }
-.card.c-pwr  { border-top-color:var(--orange); }
+/* ── LOG ── */
+.log-section{position:relative;z-index:1;padding:12px 28px 28px;}
+.log-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.log-box{background:var(--panel);border:1px solid var(--border);height:130px;
+  overflow-y:auto;padding:8px 14px;font-size:9px;line-height:1.9;}
+.log-box::-webkit-scrollbar{width:3px;}
+.log-box::-webkit-scrollbar-thumb{background:var(--dim);}
+.le-ts{color:var(--dim);}
+.le-ok{color:var(--green);}
+.le-warn{color:var(--yellow);}
+.le-err{color:var(--red);}
+.le-info{color:var(--cyan);}
 
-.card-lbl {
-  font-size:9px; letter-spacing:2px; text-transform:uppercase;
-  opacity:.35; margin-bottom:10px;
-}
-.card-val {
-  font-family: var(--orbit);
-  font-size:28px;
-  line-height:1;
-  color:#fff;
-}
-.card-val.c-pos  { color:var(--cyan);   text-shadow:0 0 10px rgba(0,229,255,.5); }
-.card-val.c-dist { color:var(--green);  text-shadow:0 0 10px rgba(0,255,136,.4); }
-.card-val.c-volt { color:#4488ff;       text-shadow:0 0 10px rgba(68,136,255,.4); }
-.card-val.c-curr { color:var(--yellow); text-shadow:0 0 10px rgba(255,221,0,.4); }
-.card-val.c-pwr  { color:var(--orange); text-shadow:0 0 10px rgba(255,136,0,.4); }
-.card-unit { font-size:11px; opacity:.3; font-family:var(--mono); margin-left:2px; }
-.card-sub  { font-size:10px; opacity:.25; margin-top:6px; }
+/* Modal overlay for clear confirm */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;
+  align-items:center;justify-content:center;}
+.modal-bg.show{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--red);padding:28px 32px;min-width:300px;text-align:center;}
+.modal h3{font-family:var(--orbit);color:var(--red);font-size:13px;letter-spacing:3px;margin-bottom:12px;}
+.modal p{font-size:10px;opacity:.5;margin-bottom:20px;letter-spacing:1px;}
+.modal-btns{display:flex;gap:12px;justify-content:center;}
 
-/* ── CHARTS ROW ─────────────────────────────────── */
-.charts {
-  position:relative; z-index:1;
-  display:grid; grid-template-columns:1fr 1fr;
-  gap:12px; padding:0 28px 20px;
-}
-@media(max-width:700px) { .charts { grid-template-columns:1fr; } }
-
-.chart-box {
-  background:var(--panel);
-  border: 1px solid var(--border);
-  padding:16px;
-}
-.chart-title {
-  font-size:9px; letter-spacing:3px; text-transform:uppercase;
-  opacity:.35; margin-bottom:12px;
-}
-canvas.mini { width:100%!important; height:90px!important; display:block; }
-
-/* ── LOG ────────────────────────────────────────── */
-.log-section {
-  position:relative; z-index:1;
-  padding:0 28px 28px;
-}
-.log-box {
-  background:var(--panel);
-  border:1px solid var(--border);
-  height:140px; overflow-y:auto;
-  padding:10px 14px;
-  font-size:10px; line-height:2;
-}
-.log-box::-webkit-scrollbar { width:3px; }
-.log-box::-webkit-scrollbar-thumb { background:var(--dim); }
-
-.le-ts  { color:var(--dim); }
-.le-ok  { color:var(--green); }
-.le-warn{ color:var(--yellow); }
-.le-err { color:var(--red); }
-
-/* Config bar */
-.cfg-bar {
-  position:relative; z-index:1;
-  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  padding:10px 28px;
-  border-top:1px solid var(--border);
-  border-bottom:1px solid var(--border);
-  background:rgba(0,229,255,.02);
-  font-size:10px; letter-spacing:2px; text-transform:uppercase;
-}
-.cfg-bar label { opacity:.35; }
-select {
-  background:#080e14; border:1px solid var(--dim);
-  color:var(--cyan); font-family:var(--mono); font-size:11px;
-  padding:4px 8px; outline:none; cursor:pointer;
-}
-select option { background:#080e14; }
-
-@keyframes blink { 50%{opacity:0;} }
-.blink { animation: blink 1s steps(1) infinite; }
+@keyframes blink{50%{opacity:0;}}
+.blink{animation:blink 1s steps(1) infinite;}
 </style>
 </head>
 <body>
 
-<!-- Header -->
+<!-- ── HEADER ────────────────────────────────────────── -->
 <header>
   <div class="logo">
-    ESP32 TRACKER <sub>// INA219 + POTENTIOMETER</sub>
+    ESP32 TRACKER
+    <span>// 12951 MUMBAI RAJDHANI EXPRESS</span>
   </div>
-  <div style="display:flex;gap:14px;align-items:center;">
-    <span style="font-size:10px;opacity:.3;" id="last-ts">--:--:--</span>
-    <div class="pill wait" id="status">WAITING</div>
+  <div class="hdr-right">
+    <div class="health-dot" id="hdot" title="Server health"></div>
+    <span class="ts-disp" id="last-ts">--:--:--</span>
+    <div class="pill wait" id="status-pill">WAITING</div>
   </div>
 </header>
 
-<!-- Config -->
+<!-- ── CONFIG BAR ─────────────────────────────────────── -->
 <div class="cfg-bar">
+  <label>API</label>
+  <input class="cfg-inp" id="api-url" value="http://localhost:8000"
+    onchange="API=this.value.replace(/\/$/,'')" placeholder="http://192.168.x.x:8000"/>
+
   <label>Refresh</label>
-  <select id="sel-refresh" onchange="setRefresh(this.value)">
+  <select class="cfg-sel" id="sel-refresh" onchange="setRefresh(+this.value)">
     <option value="1000">1s</option>
     <option value="3000" selected>3s</option>
     <option value="5000">5s</option>
     <option value="10000">10s</option>
   </select>
-  <label>Track Window</label>
-  <select id="sel-window" onchange="trackWindow=+this.value">
+
+  <label>History</label>
+  <select class="cfg-sel" id="sel-window" onchange="histWindow=+this.value;fetchAll()">
     <option value="50">50 pts</option>
     <option value="100" selected>100 pts</option>
     <option value="200">200 pts</option>
+    <option value="500">500 pts</option>
   </select>
+
   <label>Device</label>
-  <select id="sel-device" onchange="device=this.value">
+  <select class="cfg-sel" id="sel-device" onchange="selDevice=this.value">
     <option value="">All</option>
   </select>
-  <span style="margin-left:auto;opacity:.2;font-size:9px;" id="pkt-count">0 packets</span>
-</div>
 
-<!-- Track Visualizer -->
-<div class="track-section">
-  <div class="section-label">▸ OBJECT TRACK — X Axis (straight line)</div>
-  <div class="track-wrap" id="track-wrap">
-    <canvas id="trail-canvas"></canvas>
-    <!-- Ticks -->
-    <div class="rail-ticks" id="ticks"></div>
-    <!-- Object dot -->
-    <div id="obj-dot"></div>
-  </div>
-  <div class="track-labels">
-    <span id="track-min">0</span>
-    <span>X Position</span>
-    <span id="track-max">—</span>
+  <div class="cfg-right">
+    <span id="pkt-count">0 packets</span>
+    <button class="btn" onclick="fetchStats()">↻ STATS</button>
+    <button class="btn accent" onclick="exportCSV()">⬇ EXPORT</button>
+    <button class="btn danger" onclick="showClearModal()">✕ CLEAR</button>
   </div>
 </div>
 
-<!-- Speed Bar -->
-<div class="gauge-row">
-  <div class="speed-label" id="spd-val">0<span class="speed-unit">%</span></div>
-  <div class="gauge-bar-wrap">
-    <div class="gauge-bar-fill" id="spd-bar"></div>
-  </div>
-  <div style="font-size:10px;opacity:.3;min-width:60px;">
-    <span id="spd-ups">0.00</span> u/s
+<!-- ── TRAIN ROUTE VISUALIZER ─────────────────────────── -->
+<div class="route-section">
+  <div class="slabel">▸ TRAIN ROUTE — 12951 Mumbai Rajdhani Express (MMCT → NDLS)</div>
+  <div class="route-wrap">
+    <div class="route-track" id="route-track">
+      <div class="route-fill" id="route-fill" style="width:0%"></div>
+      <!-- Station dots injected by JS -->
+      <div class="train-dot" id="train-dot" style="left:0%"></div>
+    </div>
+    <div class="route-info">
+      <span>Mumbai Central · 0 km</span>
+      <span id="cur-station-label" style="color:var(--cyan);opacity:.7;font-size:9px;letter-spacing:2px;">—</span>
+      <span>New Delhi · 1384 km</span>
+    </div>
   </div>
 </div>
 
-<!-- Metric Cards -->
+<!-- ── SPEED GAUGE ─────────────────────────────────────── -->
+<div class="gauge-section">
+  <div class="gauge-inner">
+    <div class="spd-big" id="spd-big">0<sub>%</sub></div>
+    <div class="gauge-bar-col">
+      <div class="gauge-bar-wrap">
+        <div class="gauge-bar-fill" id="spd-bar"></div>
+      </div>
+      <div class="gauge-meta">
+        <span id="spd-ups-disp">0.00 u/s</span>
+        <span id="spd-max-disp">max —%</span>
+        <span id="spd-avg-disp">avg —%</span>
+      </div>
+    </div>
+    <div class="uptime-disp" id="uptime-disp">uptime — s</div>
+  </div>
+</div>
+
+<!-- ── METRIC CARDS ROW 1 ─────────────────────────────── -->
 <div class="cards">
   <div class="card c-pos">
-    <div class="card-lbl">▸ Position X</div>
-    <div class="card-val c-pos" id="v-posx">—<span class="card-unit">u</span></div>
-    <div class="card-sub" id="s-posx">Y=0 Z=0</div>
+    <div class="card-lbl">▸ Position X (km)</div>
+    <div class="card-val c-pos" id="v-posx">—<span class="card-unit">km</span></div>
+    <div class="card-sub" id="s-dist">dist —</div>
   </div>
-  <div class="card c-dist">
-    <div class="card-lbl">∫ Total Distance</div>
-    <div class="card-val c-dist" id="v-dist">—<span class="card-unit">u</span></div>
-    <div class="card-sub" id="s-dist">—</div>
+  <div class="card c-gps">
+    <div class="card-lbl">⊕ GPS Coordinates</div>
+    <div class="card-val c-gps" id="v-gps">—</div>
+    <div class="card-sub" id="s-station">—</div>
   </div>
   <div class="card c-volt">
     <div class="card-lbl">⚡ Voltage</div>
@@ -389,297 +300,463 @@ select option { background:#080e14; }
   <div class="card c-curr">
     <div class="card-lbl">〜 Current</div>
     <div class="card-val c-curr" id="v-curr">—<span class="card-unit">mA</span></div>
-    <div class="card-sub" id="s-curr">avg —</div>
+    <div class="card-sub" id="s-curr">avg — mA</div>
   </div>
+</div>
+
+<!-- ── METRIC CARDS ROW 2 ─────────────────────────────── -->
+<div class="cards2">
   <div class="card c-pwr">
     <div class="card-lbl">◈ Power</div>
     <div class="card-val c-pwr" id="v-pwr">—<span class="card-unit">mW</span></div>
     <div class="card-sub" id="s-pwr">— W</div>
   </div>
+  <div class="card c-draw">
+    <div class="card-lbl">↓ Drawn</div>
+    <div class="card-val c-draw" id="v-draw">—<span class="card-unit">mW</span></div>
+    <div class="card-sub" id="s-draw">power consumed</div>
+  </div>
+  <div class="card c-gen">
+    <div class="card-lbl">↑ Generated</div>
+    <div class="card-val c-gen" id="v-gen">—<span class="card-unit">mW</span></div>
+    <div class="card-sub" id="s-gen">regen / backfeed</div>
+  </div>
+  <div class="card c-energy">
+    <div class="card-lbl">∫ Energy Used</div>
+    <div class="card-val c-energy" id="v-energy">—<span class="card-unit">mWh</span></div>
+    <div class="card-sub" id="s-energy">session total</div>
+  </div>
 </div>
 
-<!-- Mini Charts -->
+<!-- ── CHARTS ─────────────────────────────────────────── -->
 <div class="charts">
   <div class="chart-box">
-    <div class="chart-title">Speed % History</div>
+    <div class="chart-title">Speed % History <span id="ch-spd-now">—</span></div>
     <canvas class="mini" id="c-speed"></canvas>
   </div>
   <div class="chart-box">
-    <div class="chart-title">Power mW History</div>
+    <div class="chart-title">Power mW History <span id="ch-pwr-now">—</span></div>
     <canvas class="mini" id="c-power"></canvas>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Voltage V History <span id="ch-volt-now">—</span></div>
+    <canvas class="mini" id="c-voltage"></canvas>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Current mA History <span id="ch-curr-now">—</span></div>
+    <canvas class="mini" id="c-current"></canvas>
   </div>
 </div>
 
-<!-- Log -->
+<!-- ── SESSION STATS ──────────────────────────────────── -->
+<div class="stats-section">
+  <div class="slabel" style="margin-top:12px;">▸ SESSION STATS</div>
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-block">
+      <div class="stat-block-title">Motion</div>
+      <div class="stat-row"><span class="stat-k">Packets</span><span class="stat-v" id="st-pkts">—</span></div>
+      <div class="stat-row"><span class="stat-k">Time</span><span class="stat-v" id="st-time">—</span></div>
+      <div class="stat-row"><span class="stat-k">Speed avg</span><span class="stat-v" id="st-spd-avg">—</span></div>
+      <div class="stat-row"><span class="stat-k">Speed max</span><span class="stat-v" id="st-spd-max">—</span></div>
+      <div class="stat-row"><span class="stat-k">Distance</span><span class="stat-v" id="st-dist">—</span></div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-block-title">Power</div>
+      <div class="stat-row"><span class="stat-k">Voltage avg</span><span class="stat-v" id="st-volt">—</span></div>
+      <div class="stat-row"><span class="stat-k">Current avg</span><span class="stat-v" id="st-curr">—</span></div>
+      <div class="stat-row"><span class="stat-k">Power avg</span><span class="stat-v" id="st-pwr-avg">—</span></div>
+      <div class="stat-row"><span class="stat-k">Power max</span><span class="stat-v" id="st-pwr-max">—</span></div>
+      <div class="stat-row"><span class="stat-k">Energy total</span><span class="stat-v" id="st-energy">—</span></div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-block-title">Session</div>
+      <div class="stat-row"><span class="stat-k">Device</span><span class="stat-v" id="st-dev">—</span></div>
+      <div class="stat-row"><span class="stat-k">First packet</span><span class="stat-v" id="st-first">—</span></div>
+      <div class="stat-row"><span class="stat-k">Last packet</span><span class="stat-v" id="st-last">—</span></div>
+      <div class="stat-row"><span class="stat-k">Total stored</span><span class="stat-v" id="st-total">—</span></div>
+      <div class="stat-row"><span class="stat-k">Drawn total</span><span class="stat-v" id="st-drawn">—</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── EVENT LOG ──────────────────────────────────────── -->
 <div class="log-section">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <span style="font-size:9px;letter-spacing:3px;opacity:.35;text-transform:uppercase;">▸ Event Log</span>
-    <button onclick="clearLog()" style="background:none;border:1px solid var(--dim);color:var(--dim);
-      font-family:var(--mono);font-size:9px;padding:3px 10px;cursor:pointer;letter-spacing:2px;">CLR</button>
+  <div class="log-hdr">
+    <span style="font-size:9px;letter-spacing:3px;opacity:.3;text-transform:uppercase;">▸ Event Log</span>
+    <button class="btn" onclick="clearLog()">CLR</button>
   </div>
   <div class="log-box" id="log"></div>
 </div>
 
+<!-- ── CLEAR CONFIRM MODAL ────────────────────────────── -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3>CONFIRM CLEAR</h3>
+    <p>This will delete all records from the database.<br/>This action cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="btn" onclick="hideClearModal()">CANCEL</button>
+      <button class="btn danger" onclick="doClear()">DELETE ALL</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// ── STATE ──────────────────────────────────────────────
-const API    = "https://techfest2026-three.vercel.app";
-let device   = '';
-let trackWindow = 100;
-let refreshMs   = 3000;
-let timer       = null;
-let totalPkts   = 0;
+// ── CONFIG ────────────────────────────────────────────────
+let API        = document.getElementById('api-url').value;
+let selDevice  = '';
+let histWindow = 100;
+let refreshMs  = 3000;
+let timer      = null;
+let totalPkts  = 0;
 
-// Chart histories
-let spdHist = [];
-let pwrHist = [];
+// ── TRAIN STATIONS ────────────────────────────────────────
+const STATIONS = [
+  { name:'Mumbai Central', km:0,    pct:0    },
+  { name:'Surat',          km:263,  pct:19.0 },
+  { name:'Vadodara Jn',    km:392,  pct:28.3 },
+  { name:'Ratlam Jn',      km:627,  pct:45.3 },
+  { name:'Kota Jn',        km:864,  pct:62.4 },
+  { name:'New Delhi',      km:1384, pct:100  },
+];
+const TOTAL_KM = 1384;
 
-// Track state
-let trackMin = 0;
-let trackMax = 10;   // will auto-expand
-
-// ── TRAIL CANVAS SETUP ────────────────────────────────
-const trailCanvas = document.getElementById('trail-canvas');
-const tCtx        = trailCanvas.getContext('2d');
-let   trailPoints = [];     // [{x: pixel, y: pixel}]
-let   dataXHistory = [];   // real x values for mapping
-
-function resizeTrail() {
-  const wrap = document.getElementById('track-wrap');
-  trailCanvas.width  = wrap.clientWidth;
-  trailCanvas.height = wrap.clientHeight;
-}
-resizeTrail();
-window.addEventListener('resize', () => { resizeTrail(); drawTrail(); });
-
-function drawTrail() {
-  tCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-  if (trailPoints.length < 2) return;
-  tCtx.beginPath();
-  tCtx.strokeStyle = 'rgba(0,229,255,0.35)';
-  tCtx.lineWidth   = 2;
-  trailPoints.forEach((p, i) => {
-    if (i === 0) tCtx.moveTo(p.px, p.py);
-    else          tCtx.lineTo(p.px, p.py);
+// Build station dots on track
+(function buildRoute(){
+  const track = document.getElementById('route-track');
+  STATIONS.forEach((s, i) => {
+    // Dot
+    const dot = document.createElement('div');
+    dot.className = 'station-dot';
+    dot.id = 'sdot-' + i;
+    dot.style.left = s.pct + '%';
+    track.appendChild(dot);
+    // Name label
+    const lbl = document.createElement('div');
+    lbl.className = 'station-label';
+    lbl.id = 'slbl-' + i;
+    lbl.style.left = s.pct + '%';
+    lbl.textContent = s.name.replace(' Jn','').replace(' Central','');
+    track.appendChild(lbl);
+    // km label
+    const km = document.createElement('div');
+    km.className = 'station-dist';
+    km.style.left = s.pct + '%';
+    km.textContent = s.km + ' km';
+    track.appendChild(km);
   });
-  tCtx.stroke();
+})();
+
+function updateRoute(posX) {
+  const clampedX = Math.min(Math.max(posX, 0), TOTAL_KM);
+  const pct      = (clampedX / TOTAL_KM) * 100;
+  document.getElementById('route-fill').style.width = pct + '%';
+  document.getElementById('train-dot').style.left   = pct + '%';
+
+  // Station states
+  let curName = '—';
+  STATIONS.forEach((s, i) => {
+    const dot = document.getElementById('sdot-' + i);
+    const lbl = document.getElementById('slbl-' + i);
+    if (!dot) return;
+    const isLast   = i === STATIONS.length - 1;
+    const nextKm   = isLast ? TOTAL_KM : STATIONS[i + 1].km;
+    const isCur    = posX >= s.km && posX < nextKm;
+    const isPassed = posX >= nextKm || (isLast && posX >= s.km);
+    dot.className = 'station-dot' + (isCur ? ' current' : isPassed ? ' passed' : '');
+    lbl.className = 'station-label' + (isCur || isPassed ? ' passed' : '');
+    if (isCur) curName = s.name.toUpperCase();
+  });
+  document.getElementById('cur-station-label').textContent =
+    curName !== '—' ? '▶ ' + curName : '—';
 }
 
-function dataXtoPixel(x) {
-  const wrap = document.getElementById('track-wrap');
-  const pad  = 28;
-  const w    = wrap.clientWidth - pad * 2;
-  const range = Math.max(trackMax - trackMin, 0.001);
-  return pad + ((x - trackMin) / range) * w;
-}
-
-// Build tick marks
-function buildTicks() {
-  const container = document.getElementById('ticks');
-  container.innerHTML = '';
-  const steps = 10;
-  for (let i = 0; i <= steps; i++) {
-    const val  = trackMin + (trackMax - trackMin) * (i / steps);
-    const div  = document.createElement('div');
-    div.className = 'tick';
-    const sp   = document.createElement('span');
-    sp.textContent = val.toFixed(0);
-    div.appendChild(sp);
-    container.appendChild(div);
+// ── CHARTS INIT ───────────────────────────────────────────
+const chartCfg = (color, unit) => ({
+  type: 'line',
+  data: { labels: [], datasets: [{ data: [], borderColor: color,
+    backgroundColor: color + '18', borderWidth: 1.5,
+    pointRadius: 0, fill: true, tension: 0.3 }] },
+  options: {
+    animation: false,
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + ' ' + unit },
+      backgroundColor:'#0a1018', borderColor:'#142030', borderWidth:1,
+      titleColor:'#8ab8d0', bodyColor: color,
+      titleFont:{family:'Share Tech Mono', size:9},
+      bodyFont:{family:'Share Tech Mono', size:9},
+    }},
+    scales: {
+      x: { display:false },
+      y: { display:true, grid:{ color:'rgba(20,32,48,.8)', drawTicks:false },
+           border:{ display:false },
+           ticks:{ color:'rgba(90,138,160,.35)', font:{family:'Share Tech Mono',size:8},
+                   maxTicksLimit:4, padding:4 }}
+    }
   }
-  document.getElementById('track-min').textContent = trackMin.toFixed(1);
-  document.getElementById('track-max').textContent = trackMax.toFixed(1);
+});
+
+const charts = {
+  speed:   new Chart(document.getElementById('c-speed'),   chartCfg('#00e5ff','%')),
+  power:   new Chart(document.getElementById('c-power'),   chartCfg('#ff8800','mW')),
+  voltage: new Chart(document.getElementById('c-voltage'), chartCfg('#4488ff','V')),
+  current: new Chart(document.getElementById('c-current'), chartCfg('#ffdd00','mA')),
+};
+
+function pushChart(chart, val, maxPts) {
+  const ds = chart.data;
+  const n  = Date.now();
+  ds.labels.push('');
+  ds.datasets[0].data.push(val);
+  while (ds.datasets[0].data.length > maxPts) {
+    ds.labels.shift(); ds.datasets[0].data.shift();
+  }
+  chart.update('none');
 }
-buildTicks();
 
-// ── MINI CHART DRAW ───────────────────────────────────
-function drawMini(canvasId, data, color, unit) {
-  const c   = document.getElementById(canvasId);
-  const ctx = c.getContext('2d');
-  const w   = c.parentElement.clientWidth - 32;
-  const h   = 90;
-  c.width = w; c.height = h;
-  ctx.clearRect(0, 0, w, h);
+// ── NEAREST STATION by km ────────────────────────────────
+function nearestStation(km) {
+  let best = STATIONS[0], bestD = Infinity;
+  STATIONS.forEach(s => {
+    const d = Math.abs(s.km - km);
+    if (d < bestD) { bestD = d; best = s; }
+  });
+  return best;
+}
 
-  if (data.length < 2) return;
-  const max   = Math.max(...data) * 1.15 || 1;
-  const min   = Math.min(0, Math.min(...data));
-  const range = max - min || 1;
+// ── FETCH LATEST ─────────────────────────────────────────
+async function fetchLatest() {
+  const url = `${API}/api/latest${selDevice ? '?device_id='+selDevice : ''}`;
+  const r   = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  if (!j.latest) throw new Error('no data');
+  return j;
+}
 
-  // Grid
-  for (let i = 0; i <= 3; i++) {
-    const y = h - 16 - (i / 3) * (h - 22);
-    ctx.strokeStyle = 'rgba(20,32,48,0.9)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    const v = (min + range * (i / 3)).toFixed(1);
-    ctx.fillStyle = 'rgba(138,184,208,.2)';
-    ctx.font = '8px Share Tech Mono, monospace';
-    ctx.fillText(v + unit, 3, y - 2);
+// ── FETCH HISTORY ─────────────────────────────────────────
+async function fetchHistory() {
+  const q   = `limit=${histWindow}${selDevice ? '&device_id='+selDevice : ''}`;
+  const r   = await fetch(`${API}/api/history?${q}`);
+  const j   = await r.json();
+  return j;
+}
+
+// ── FETCH STATS ───────────────────────────────────────────
+async function fetchStats() {
+  try {
+    const q = selDevice ? '?device_id='+selDevice : '';
+    const r = await fetch(`${API}/api/stats${q}`);
+    if (!r.ok) return;
+    const s = await r.json();
+    if (s.error) return;
+    document.getElementById('st-pkts').textContent    = s.total_packets;
+    document.getElementById('st-time').textContent    = s.total_time_minutes + ' min';
+    document.getElementById('st-spd-avg').textContent = s.speed?.avg_pct + ' %';
+    document.getElementById('st-spd-max').textContent = s.speed?.max_pct + ' %';
+    document.getElementById('st-dist').textContent    = s.position?.total_distance + ' km';
+    document.getElementById('st-volt').textContent    = s.power?.voltage_avg_V + ' V';
+    document.getElementById('st-curr').textContent    = s.power?.current_avg_mA + ' mA';
+    document.getElementById('st-pwr-avg').textContent = s.power?.power_avg_mW + ' mW';
+    document.getElementById('st-pwr-max').textContent = s.power?.power_max_mW + ' mW';
+    document.getElementById('st-energy').textContent  = s.power?.total_energy_mWh + ' mWh';
+    document.getElementById('st-dev').textContent     = s.device_id || '—';
+    document.getElementById('st-first').textContent   = (s.first_packet||'').slice(11,19);
+    document.getElementById('st-last').textContent    = (s.last_packet||'').slice(11,19);
+    document.getElementById('st-drawn').textContent   = s.power?.drawn_total_mWh + ' mWh';
+    addLog('Stats refreshed ✓', 'le-info');
+  } catch(e) { addLog('Stats error: '+e.message,'le-warn'); }
+}
+
+// ── FETCH DEVICES ─────────────────────────────────────────
+async function fetchDevices() {
+  const r = await fetch(`${API}/api/devices`);
+  const j = await r.json();
+  const sel = document.getElementById('sel-device');
+  Object.keys(j.devices || {}).forEach(id => {
+    if (!sel.querySelector(`option[value="${id}"]`)) {
+      const o = document.createElement('option');
+      o.value = id; o.textContent = id;
+      sel.appendChild(o);
+    }
+  });
+}
+
+// ── HEALTH CHECK ──────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const j = await r.json();
+    const dot = document.getElementById('hdot');
+    if (j.status === 'ok') {
+      dot.className = 'health-dot ok';
+      document.getElementById('st-total').textContent = j.total_records + ' rows';
+    }
+  } catch(e) {
+    document.getElementById('hdot').className = 'health-dot err';
+  }
+}
+
+// ── UPDATE UI ─────────────────────────────────────────────
+function updateCards(d, stats) {
+  // Speed gauge
+  const pct = +(d.speed_pct||0);
+  document.getElementById('spd-big').innerHTML = pct.toFixed(1) + '<sub>%</sub>';
+  document.getElementById('spd-bar').style.width = pct + '%';
+  document.getElementById('spd-ups-disp').textContent  = (d.speed_ups||0).toFixed(2) + ' u/s';
+  document.getElementById('uptime-disp').textContent   = 'uptime ' + (d.uptime_sec||0) + ' s';
+
+  if (stats) {
+    document.getElementById('spd-max-disp').textContent = 'max ' + (stats.speed_max_pct||'—') + '%';
+    document.getElementById('spd-avg-disp').textContent = 'avg ' + (stats.speed_avg_pct||'—') + '%';
   }
 
-  // Fill area
-  const grd = ctx.createLinearGradient(0, 0, 0, h);
-  grd.addColorStop(0, color + '44');
-  grd.addColorStop(1, 'transparent');
-  ctx.beginPath();
-  data.forEach((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - 16 - ((v - min) / range) * (h - 22);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-  ctx.fillStyle = grd; ctx.fill();
+  // Position & GPS
+  const posX = +(d.pos_x||0);
+  const posY = +(d.pos_y||0);
+  const posZ = +(d.pos_z||0);
+  document.getElementById('v-posx').innerHTML = posX.toFixed(1) + '<span class="card-unit">km</span>';
+  document.getElementById('s-dist').textContent = 'total dist ' + (d.total_distance||0).toFixed(1) + ' km';
+  document.getElementById('v-gps').innerHTML =
+    posY.toFixed(4) + '° N<br>' + posZ.toFixed(4) + '° E';
+  const ns = nearestStation(posX);
+  document.getElementById('s-station').textContent = '≈ ' + ns.name + ' (' + ns.km + ' km)';
 
-  // Line
-  ctx.beginPath();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.shadowColor = color; ctx.shadowBlur = 5;
-  data.forEach((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - 16 - ((v - min) / range) * (h - 22);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  ctx.shadowBlur = 0;
+  // Power
+  const voltV  = +(d.voltage_V||0);
+  const currMA = +(d.current_mA||0);
+  const pwrMW  = +(d.power_mW||0);
+  const drwMW  = +(d.drawn_mW||0);
+  const genMW  = +(d.generated_mW||0);
+
+  document.getElementById('v-volt').innerHTML = voltV.toFixed(3) + '<span class="card-unit">V</span>';
+  document.getElementById('v-curr').innerHTML = currMA.toFixed(1) + '<span class="card-unit">mA</span>';
+  document.getElementById('v-pwr').innerHTML  = pwrMW.toFixed(2)  + '<span class="card-unit">mW</span>';
+  document.getElementById('v-draw').innerHTML = drwMW.toFixed(2)  + '<span class="card-unit">mW</span>';
+  document.getElementById('v-gen').innerHTML  = genMW.toFixed(2)  + '<span class="card-unit">mW</span>';
+  document.getElementById('s-pwr').textContent = (pwrMW/1000).toFixed(4) + ' W';
+
+  if (stats) {
+    document.getElementById('s-volt').textContent = 'avg ' + (stats.voltage_avg_V||'—') + ' V';
+    document.getElementById('s-curr').textContent = 'avg — mA';
+  }
+
+  // Train route
+  updateRoute(posX);
+
+  // Charts live values
+  document.getElementById('ch-spd-now').textContent  = pct.toFixed(1) + ' %';
+  document.getElementById('ch-pwr-now').textContent  = pwrMW.toFixed(1) + ' mW';
+  document.getElementById('ch-volt-now').textContent = voltV.toFixed(3) + ' V';
+  document.getElementById('ch-curr-now').textContent = currMA.toFixed(1) + ' mA';
 }
 
-// ── FETCH & UPDATE ────────────────────────────────────
+function updateStatus(s) {
+  const p = document.getElementById('status-pill');
+  p.className = 'pill ' + s;
+  p.textContent = {live:'LIVE',wait:'WAITING',dead:'OFFLINE'}[s];
+}
+
+// ── MAIN FETCH CYCLE ──────────────────────────────────────
 async function fetchAll() {
   try {
-    // Latest reading
-    const url1 = `${API}/api/latest${device ? '?device_id='+device : ''}`;
-    const r1   = await fetch(url1);
-    if (!r1.ok) throw new Error('no data');
-    const j1   = await r1.json();
-    const d    = j1.latest;
-    if (!d) throw new Error('empty');
-
+    // Latest
+    const {latest: d, total_stored} = await fetchLatest();
     updateStatus('live');
-    updateCards(d);
-    totalPkts++;
-    document.getElementById('pkt-count').textContent = totalPkts + ' packets';
     document.getElementById('last-ts').textContent = new Date().toLocaleTimeString();
+    totalPkts++;
+    document.getElementById('pkt-count').textContent = totalPkts + ' polls';
+
+    // History
+    const hj = await fetchHistory();
+    const rds = hj.readings || [];
+    updateCards(d, hj.stats);
+
+    // Update charts from history
+    if (rds.length) {
+      // Only push latest point to charts
+      pushChart(charts.speed,   +d.speed_pct,  histWindow);
+      pushChart(charts.power,   +d.power_mW,   histWindow);
+      pushChart(charts.voltage, +d.voltage_V,  histWindow);
+      pushChart(charts.current, +d.current_mA, histWindow);
+    }
+
+    // Energy from history window
+    if (hj.stats) {
+      const energyEst = (hj.stats.power_avg_mW * rds.length * 5) / 3600;
+      document.getElementById('v-energy').innerHTML =
+        energyEst.toFixed(3) + '<span class="card-unit">mWh</span>';
+      document.getElementById('s-energy').textContent =
+        rds.length + ' pts × 5s window';
+    }
+
+    // Devices
+    await fetchDevices();
 
     addLog(
-      `X=${d.pos_x.toFixed(2)} | Spd=${d.speed_pct.toFixed(1)}% | `+
-      `V=${d.voltage_V}V | P=${d.power_mW}mW`,
+      `X=${(+d.pos_x).toFixed(1)}km | Spd=${(+d.speed_pct).toFixed(1)}% | `+
+      `V=${d.voltage_V}V | P=${(+d.power_mW).toFixed(1)}mW | `+
+      `${d.device_id}`,
       'le-ok'
     );
 
   } catch(e) {
     updateStatus('dead');
-    addLog('Fetch failed: ' + e.message, 'le-err');
+    addLog('Fetch error: ' + e.message, 'le-err');
   }
 
-  // History for charts + track
+  checkHealth();
+}
+
+// ── EXPORT ────────────────────────────────────────────────
+function exportCSV() {
+  const q = selDevice ? '?device_id='+selDevice : '';
+  window.open(`${API}/api/export${q}`, '_blank');
+  addLog('CSV export requested', 'le-info');
+}
+
+// ── CLEAR ─────────────────────────────────────────────────
+function showClearModal() { document.getElementById('modal-bg').classList.add('show'); }
+function hideClearModal() { document.getElementById('modal-bg').classList.remove('show'); }
+async function doClear() {
+  hideClearModal();
   try {
-    const url2 = `${API}/api/history?limit=${trackWindow}${device ? '&device_id='+device : ''}`;
-    const r2   = await fetch(url2);
-    const j2   = await r2.json();
-    const rds  = j2.readings || [];
-
-    spdHist = rds.map(r => r.speed_pct);
-    pwrHist = rds.map(r => r.power_mW);
-    drawMini('c-speed', spdHist, '#00e5ff', '%');
-    drawMini('c-power', pwrHist, '#ff8800', 'mW');
-
-    // Update track
-    if (rds.length) {
-      dataXHistory = rds.map(r => r.pos_x);
-      const newMax = Math.max(...dataXHistory) * 1.1 || 10;
-      if (newMax !== trackMax) {
-        trackMax = newMax;
-        buildTicks();
-      }
-
-      // Trail points
-      const wrap = document.getElementById('track-wrap');
-      trailPoints = rds.map((r) => ({
-        px: dataXtoPixel(r.pos_x),
-        py: wrap.clientHeight / 2,
-      }));
-      drawTrail();
-
-      // Move object dot
-      const latestX = rds[rds.length - 1].pos_x;
-      const dot = document.getElementById('obj-dot');
-      dot.style.left = dataXtoPixel(latestX) + 'px';
-    }
-
-    // Stats overlay on cards
-    if (j2.stats) {
-      const s = j2.stats;
-      document.getElementById('s-volt').textContent = `avg ${s.voltage_avg_V ?? '—'} V`;
-      document.getElementById('s-curr').textContent = `max spd ${s.speed_max_pct ?? '—'}%`;
-    }
-
-    // Devices
-    const rd = await fetch(`${API}/api/devices`);
-    const jd = await rd.json();
-    const sel = document.getElementById('sel-device');
-    Object.keys(jd.devices).forEach(id => {
-      if (!sel.querySelector(`option[value="${id}"]`)) {
-        const o = document.createElement('option');
-        o.value = id; o.textContent = id;
-        sel.appendChild(o);
-      }
+    const q = selDevice ? '?device_id='+selDevice : '';
+    const r = await fetch(`${API}/api/clear${q}`, { method:'DELETE' });
+    const j = await r.json();
+    addLog('✓ ' + j.message, 'le-warn');
+    // Reset charts
+    Object.values(charts).forEach(c => {
+      c.data.labels = []; c.data.datasets[0].data = []; c.update('none');
     });
-
-  } catch(e) { /* silent */ }
+    updateStatus('wait');
+  } catch(e) { addLog('Clear error: '+e.message,'le-err'); }
 }
 
-function updateCards(d) {
-  // Speed gauge
-  const pct = d.speed_pct || 0;
-  document.getElementById('spd-val').innerHTML = pct.toFixed(1) + '<span class="speed-unit">%</span>';
-  document.getElementById('spd-bar').style.width = pct + '%';
-  document.getElementById('spd-ups').textContent = (d.speed_ups || 0).toFixed(2);
-
-  // Position
-  document.getElementById('v-posx').innerHTML = (d.pos_x || 0).toFixed(3) + '<span class="card-unit">u</span>';
-  document.getElementById('v-dist').innerHTML = (d.total_distance || 0).toFixed(2) + '<span class="card-unit">u</span>';
-  document.getElementById('s-dist').textContent = `Y=${d.pos_y} Z=${d.pos_z}`;
-
-  // Power
-  document.getElementById('v-volt').innerHTML = (d.voltage_V||0).toFixed(3) + '<span class="card-unit">V</span>';
-  document.getElementById('v-curr').innerHTML = (d.current_mA||0).toFixed(2) + '<span class="card-unit">mA</span>';
-  document.getElementById('v-pwr').innerHTML  = (d.power_mW||0).toFixed(2)   + '<span class="card-unit">mW</span>';
-  document.getElementById('s-pwr').textContent = ((d.power_mW||0)/1000).toFixed(4) + ' W';
+// ── REFRESH CONTROL ───────────────────────────────────────
+function setRefresh(ms) {
+  refreshMs = ms;
+  clearInterval(timer);
+  timer = setInterval(fetchAll, refreshMs);
+  addLog('Refresh set to ' + ms/1000 + 's', 'le-warn');
 }
 
-function updateStatus(s) {
-  const p = document.getElementById('status');
-  p.className = 'pill ' + s;
-  p.textContent = {live:'LIVE',wait:'WAITING',dead:'OFFLINE'}[s];
-}
-
-// ── LOG ───────────────────────────────────────────────
+// ── LOG ───────────────────────────────────────────────────
 function addLog(msg, cls='') {
   const box = document.getElementById('log');
   const ts  = new Date().toLocaleTimeString();
   box.innerHTML += `<div><span class="le-ts">[${ts}]</span> <span class="${cls}">${msg}</span></div>`;
-  while (box.children.length > 80) box.removeChild(box.firstChild);
+  while (box.children.length > 100) box.removeChild(box.firstChild);
   box.scrollTop = box.scrollHeight;
 }
-function clearLog() { document.getElementById('log').innerHTML = ''; }
+function clearLog() { document.getElementById('log').innerHTML=''; }
 
-// ── CONTROLS ──────────────────────────────────────────
-function setRefresh(ms) {
-  refreshMs = +ms;
-  clearInterval(timer);
-  start();
-  addLog(`Refresh = ${ms/1000}s`, 'le-warn');
-}
-
-function start() {
-  fetchAll();
-  timer = setInterval(fetchAll, refreshMs);
-}
-
-// ── BOOT ─────────────────────────────────────────────
-addLog('Dashboard ready — waiting for ESP32 telemetry...', 'le-warn');
-start();
+// ── BOOT ──────────────────────────────────────────────────
+addLog('Dashboard v3.0 ready — Train 12951 Rajdhani Express', 'le-info');
+addLog('Set API URL above if not on localhost', 'le-warn');
+fetchStats();
+fetchAll();
+timer = setInterval(fetchAll, refreshMs);
 </script>
 </body>
 </html>

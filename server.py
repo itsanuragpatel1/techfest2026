@@ -1,5 +1,5 @@
 """
-Flask + SQLite Telemetry Server
+Flask + SQLite Telemetry Server  v2.0
 ESP32 (INA219 + Potentiometer) → Flask API → SQLite DB → Dashboard
 
 Install:  pip install flask flask-cors
@@ -7,32 +7,43 @@ Run:      python server.py
 Dashboard: http://localhost:8000
 
 DB file:  telemetry.db  (auto-created on first run)
+
+POST /api/telemetry  ← ESP32 यहाँ data भेजता है
+GET  /api/latest     ← latest 1 record
+GET  /api/history    ← last N records + stats
+GET  /api/track      ← position + speed only (lightweight)
+GET  /api/stats      ← session summary + energy
+GET  /api/devices    ← all registered devices
+GET  /api/export     ← CSV download
+DELETE /api/clear    ← data clear
+GET  /health         ← server health check
 """
 
-from flask import Flask, request, jsonify, send_file, g
+from flask import Flask, request, jsonify, send_file, g, Response
 from flask_cors import CORS
 from datetime import datetime
 import sqlite3
 import time
 import os
+import csv
+import io
 
-# ─── CONFIG ──────────────────────────────────────────
+# ─── CONFIG ──────────────────────────────────────────────────
 HOST    = "0.0.0.0"
 PORT    = 8000
 DB_PATH = os.path.join(os.path.dirname(__file__), "telemetry.db")
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins (dashboard + ESP32 on LAN)
+CORS(app)
 
-# ─── DATABASE ─────────────────────────────────────────
+# ─── DATABASE ─────────────────────────────────────────────────
 
 def get_db():
-    """Return a per-request SQLite connection (stored in Flask g)."""
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-        g.db.row_factory = sqlite3.Row   # rows behave like dicts
-        g.db.execute("PRAGMA journal_mode=WAL")   # faster concurrent writes
-        g.db.execute("PRAGMA synchronous=NORMAL") # safe + fast
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
+        g.db.execute("PRAGMA synchronous=NORMAL")
     return g.db
 
 
@@ -44,7 +55,6 @@ def close_db(exc=None):
 
 
 def init_db():
-    """Create tables if they don't exist yet."""
     with sqlite3.connect(DB_PATH) as db:
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("""
@@ -53,7 +63,7 @@ def init_db():
                 device_id      TEXT    NOT NULL,
                 server_time    TEXT    NOT NULL,
                 server_unix    REAL    NOT NULL,
-                uptime_sec     INTEGER,
+                uptime_sec     INTEGER DEFAULT 0,
 
                 -- Motion
                 speed_pct      REAL    NOT NULL,
@@ -63,19 +73,18 @@ def init_db():
                 pos_z          REAL    NOT NULL DEFAULT 0,
                 total_distance REAL    NOT NULL,
 
-                -- Power
+                -- Power (from INA219)
                 voltage_V      REAL    NOT NULL,
                 current_mA     REAL    NOT NULL,
                 current_A      REAL    NOT NULL,
                 power_mW       REAL    NOT NULL,
                 power_W        REAL    NOT NULL,
-                drawn_mW       REAL    NOT NULL,
-                generated_mW   REAL    NOT NULL,
-                samples        INTEGER NOT NULL,
-                interval_sec   INTEGER NOT NULL
+                drawn_mW       REAL    NOT NULL DEFAULT 0,
+                generated_mW   REAL    NOT NULL DEFAULT 0,
+                samples        INTEGER NOT NULL DEFAULT 25,
+                interval_sec   INTEGER NOT NULL DEFAULT 5
             )
         """)
-        # Index on device_id + server_unix for fast filtered queries
         db.execute("""
             CREATE INDEX IF NOT EXISTS idx_device_time
             ON telemetry (device_id, server_unix DESC)
@@ -85,21 +94,19 @@ def init_db():
 
 
 def row_to_dict(row):
-    """Convert sqlite3.Row to plain dict."""
     return dict(row)
 
 
-# ─── HELPERS ──────────────────────────────────────────
+# ─── HELPERS ──────────────────────────────────────────────────
 
 def query(sql, params=(), one=False):
     cur = get_db().execute(sql, params)
     rows = cur.fetchall()
     result = [row_to_dict(r) for r in rows]
-    return result[0] if one and result else (None if one else result)
+    return result[0] if (one and result) else (None if one else result)
 
 
 def compute_stats(rows):
-    """Build stats dict from a list of row-dicts."""
     if not rows:
         return {}
     n = len(rows)
@@ -109,31 +116,46 @@ def compute_stats(rows):
         "power_avg_mW":   round(sum(r["power_mW"]   for r in rows) / n, 2),
         "power_max_mW":   round(max(r["power_mW"]   for r in rows), 2),
         "voltage_avg_V":  round(sum(r["voltage_V"]  for r in rows) / n, 3),
-        "pos_x_latest":   round(rows[-1]["pos_x"],  3),
-        "pos_x_range":    round(max(r["pos_x"] for r in rows) - min(r["pos_x"] for r in rows), 3),
+        "pos_x_latest":   round(rows[-1]["pos_x"], 3),
+        "pos_x_range":    round(
+            max(r["pos_x"] for r in rows) - min(r["pos_x"] for r in rows), 3
+        ),
     }
 
 
-# ─── ROUTES ───────────────────────────────────────────
+def safe_float(data, key, default=0.0):
+    """Safely extract float from dict, return default if missing/invalid."""
+    try:
+        return float(data.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# ─── ROUTES ───────────────────────────────────────────────────
 
 @app.post("/api/telemetry")
 def receive_telemetry():
     """
     ESP32 POSTs JSON here every interval.
 
-    Expected body:
+    Required body:
     {
-      "device_id": "esp32-tracker-01",
-      "uptime_sec": 120,
-      "speed_pct": 73.4,
-      "speed_ups": 7.34,
-      "position": { "x": 182.5, "y": 0, "z": 0 },
+      "device_id"     : "esp32-tracker-01",
+      "uptime_sec"    : 120,                     ← optional (default 0)
+      "speed_pct"     : 73.4,                    ← 0–100
+      "speed_ups"     : 7.34,                    ← speed_pct / 10
+      "position"      : { "x": 182.5, "y": 0, "z": 0 },
       "total_distance": 182.5,
       "power": {
-        "voltage_V": 3.712,  "current_mA": 245.6, "current_A": 0.2456,
-        "power_mW": 912.5,   "power_W": 0.9125,
-        "drawn_mW": 912.5,   "generated_mW": 0.0,
-        "samples": 25,       "interval_sec": 5
+        "voltage_V"    : 3.712,
+        "current_mA"   : 245.6,
+        "current_A"    : 0.2456,
+        "power_mW"     : 912.5,
+        "power_W"      : 0.9125,
+        "drawn_mW"     : 912.5,
+        "generated_mW" : 0.0,
+        "samples"      : 25,
+        "interval_sec" : 5
       }
     }
     """
@@ -141,15 +163,22 @@ def receive_telemetry():
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
 
-    # Validate required keys
+    # Required fields validation
     required = ["device_id", "speed_pct", "speed_ups", "position", "total_distance", "power"]
-    for key in required:
-        if key not in data:
-            return jsonify({"error": f"Missing field: {key}"}), 400
+    missing = [k for k in required if k not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {missing}"}), 400
 
     pos = data["position"]
     pwr = data["power"]
-    now = datetime.now()
+
+    # Required power fields
+    required_pwr = ["voltage_V", "current_mA", "current_A", "power_mW", "power_W"]
+    missing_pwr = [k for k in required_pwr if k not in pwr]
+    if missing_pwr:
+        return jsonify({"error": f"Missing power fields: {missing_pwr}"}), 400
+
+    now         = datetime.now()
     server_time = now.isoformat(timespec="milliseconds")
     server_unix = time.time()
 
@@ -167,29 +196,31 @@ def receive_telemetry():
         data["device_id"],
         server_time,
         server_unix,
-        data.get("uptime_sec"),
-        data["speed_pct"],
-        data["speed_ups"],
-        pos.get("x", 0),
-        pos.get("y", 0),
-        pos.get("z", 0),
-        data["total_distance"],
-        pwr["voltage_V"],
-        pwr["current_mA"],
-        pwr["current_A"],
-        pwr["power_mW"],
-        pwr["power_W"],
-        pwr["drawn_mW"],
-        pwr["generated_mW"],
-        pwr["samples"],
-        pwr["interval_sec"],
+        data.get("uptime_sec", 0),
+        float(data["speed_pct"]),
+        float(data["speed_ups"]),
+        safe_float(pos, "x"),
+        safe_float(pos, "y"),
+        safe_float(pos, "z"),
+        float(data["total_distance"]),
+        float(pwr["voltage_V"]),
+        float(pwr["current_mA"]),
+        float(pwr["current_A"]),
+        float(pwr["power_mW"]),
+        float(pwr["power_W"]),
+        safe_float(pwr, "drawn_mW"),
+        safe_float(pwr, "generated_mW"),
+        int(pwr.get("samples", 25)),
+        int(pwr.get("interval_sec", 5)),
     ))
     db.commit()
 
     print(
         f"[{server_time[:19]}] {data['device_id']} | "
-        f"Spd={data['speed_pct']:.1f}% | X={pos.get('x', 0):.3f} | "
-        f"V={pwr['voltage_V']:.3f}V | P={pwr['power_mW']:.2f}mW"
+        f"Spd={float(data['speed_pct']):.1f}% | "
+        f"X={safe_float(pos,'x'):.3f} | "
+        f"V={float(pwr['voltage_V']):.3f}V | "
+        f"P={float(pwr['power_mW']):.2f}mW"
     )
 
     return jsonify({"status": "ok", "server_time": server_time}), 201
@@ -197,7 +228,6 @@ def receive_telemetry():
 
 @app.get("/api/latest")
 def get_latest():
-    """Latest single reading, optionally filtered by device."""
     device_id = request.args.get("device_id")
     if device_id:
         row = query(
@@ -205,7 +235,10 @@ def get_latest():
             (device_id,), one=True
         )
     else:
-        row = query("SELECT * FROM telemetry ORDER BY server_unix DESC LIMIT 1", one=True)
+        row = query(
+            "SELECT * FROM telemetry ORDER BY server_unix DESC LIMIT 1",
+            one=True
+        )
 
     if not row:
         return jsonify({"error": "No data yet"}), 404
@@ -216,8 +249,7 @@ def get_latest():
 
 @app.get("/api/history")
 def get_history():
-    """Recent N readings + stats, optionally filtered by device."""
-    limit     = int(request.args.get("limit", 200))
+    limit     = min(int(request.args.get("limit", 200)), 1000)  # max 1000
     device_id = request.args.get("device_id")
 
     if device_id:
@@ -231,7 +263,7 @@ def get_history():
             (limit,)
         )
 
-    rows = list(reversed(rows))   # chronological order
+    rows = list(reversed(rows))
     return jsonify({
         "readings": rows,
         "count":    len(rows),
@@ -241,8 +273,8 @@ def get_history():
 
 @app.get("/api/track")
 def get_track():
-    """Position + speed only — lightweight for visualization."""
-    limit     = int(request.args.get("limit", 500))
+    """Position + speed only — lightweight for real-time visualization."""
+    limit     = min(int(request.args.get("limit", 500)), 2000)
     device_id = request.args.get("device_id")
 
     if device_id:
@@ -259,19 +291,25 @@ def get_track():
         )
 
     rows = list(reversed(rows))
-    track = [{"t": r["server_unix"], "x": r["pos_x"],
-               "y": r["pos_y"],      "spd": r["speed_pct"]} for r in rows]
+    track = [{
+        "t":   r["server_unix"],
+        "x":   r["pos_x"],
+        "y":   r["pos_y"],
+        "spd": r["speed_pct"]
+    } for r in rows]
     return jsonify({"track": track, "points": len(track)})
 
 
 @app.get("/api/stats")
 def get_stats():
-    """Session summary with energy calculation."""
+    """Full session summary with energy calculation."""
     device_id = request.args.get("device_id")
 
     if device_id:
-        rows = query("SELECT * FROM telemetry WHERE device_id=? ORDER BY server_unix ASC",
-                     (device_id,))
+        rows = query(
+            "SELECT * FROM telemetry WHERE device_id=? ORDER BY server_unix ASC",
+            (device_id,)
+        )
     else:
         rows = query("SELECT * FROM telemetry ORDER BY server_unix ASC")
 
@@ -280,19 +318,20 @@ def get_stats():
 
     n        = len(rows)
     interval = rows[-1]["interval_sec"] or 5
-    total_h  = (n * interval) / 3600
-    energy   = sum(r["power_mW"] for r in rows) * (interval / 3600)
+    total_h  = (n * interval) / 3600.0
+    energy_mWh = sum(r["power_mW"] for r in rows) * (interval / 3600.0)
 
     return jsonify({
         "total_packets":      n,
         "total_time_minutes": round(total_h * 60, 2),
+        "device_id":          rows[-1]["device_id"],
         "speed": {
             "avg_pct": round(sum(r["speed_pct"] for r in rows) / n, 2),
             "max_pct": round(max(r["speed_pct"] for r in rows), 2),
             "avg_ups": round(sum(r["speed_ups"] for r in rows) / n, 3),
         },
         "position": {
-            "current_x":      round(rows[-1]["pos_x"],         3),
+            "current_x":      round(rows[-1]["pos_x"], 3),
             "total_distance": round(rows[-1]["total_distance"], 3),
         },
         "power": {
@@ -300,7 +339,10 @@ def get_stats():
             "current_avg_mA":   round(sum(r["current_mA"] for r in rows) / n, 2),
             "power_avg_mW":     round(sum(r["power_mW"]   for r in rows) / n, 2),
             "power_max_mW":     round(max(r["power_mW"]   for r in rows), 2),
-            "total_energy_mWh": round(energy, 4),
+            "total_energy_mWh": round(energy_mWh, 4),
+            "drawn_total_mWh":  round(
+                sum(r["drawn_mW"] for r in rows) * (interval / 3600.0), 4
+            ),
         },
         "first_packet": rows[0]["server_time"],
         "last_packet":  rows[-1]["server_time"],
@@ -315,7 +357,9 @@ def get_devices():
                COUNT(*)          AS total_packets,
                MAX(server_time)  AS last_seen,
                MAX(pos_x)        AS max_x,
-               MAX(speed_pct)    AS max_speed
+               MAX(speed_pct)    AS max_speed,
+               AVG(voltage_V)    AS avg_voltage,
+               AVG(power_mW)     AS avg_power
         FROM telemetry
         GROUP BY device_id
     """)
@@ -326,14 +370,17 @@ def get_devices():
 @app.get("/api/export")
 def export_csv():
     """Download all data as CSV."""
-    import csv, io
     device_id = request.args.get("device_id")
 
     if device_id:
-        rows = query("SELECT * FROM telemetry WHERE device_id=? ORDER BY server_unix ASC",
-                     (device_id,))
+        rows = query(
+            "SELECT * FROM telemetry WHERE device_id=? ORDER BY server_unix ASC",
+            (device_id,)
+        )
+        filename = f"telemetry_{device_id}.csv"
     else:
         rows = query("SELECT * FROM telemetry ORDER BY server_unix ASC")
+        filename = "telemetry_all.csv"
 
     if not rows:
         return jsonify({"error": "No data"}), 404
@@ -343,11 +390,10 @@ def export_csv():
     writer.writeheader()
     writer.writerows(rows)
 
-    from flask import Response
     return Response(
         out.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=telemetry.csv"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
@@ -369,7 +415,12 @@ def clear_data():
 @app.get("/health")
 def health():
     row = query("SELECT COUNT(*) AS n FROM telemetry", one=True)
-    return jsonify({"status": "ok", "db": DB_PATH, "total_records": row["n"]})
+    return jsonify({
+        "status":        "ok",
+        "db":            DB_PATH,
+        "total_records": row["n"] if row else 0,
+        "server_time":   datetime.now().isoformat(timespec="milliseconds"),
+    })
 
 
 @app.get("/")
@@ -378,10 +429,11 @@ def dashboard():
     return send_file(html_path)
 
 
-# ─── MAIN ─────────────────────────────────────────────
+# ─── MAIN ─────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
-    print(f"[SERVER] Flask running on http://{HOST}:{PORT}")
-    print(f"[SERVER] Dashboard → http://localhost:{PORT}")
-    print(f"[SERVER] DB path   → {DB_PATH}")
+    print(f"\n[SERVER] Flask running  → http://{HOST}:{PORT}")
+    print(f"[SERVER] Dashboard      → http://localhost:{PORT}")
+    print(f"[SERVER] API telemetry  → POST http://localhost:{PORT}/api/telemetry")
+    print(f"[SERVER] DB path        → {DB_PATH}\n")
     app.run(host=HOST, port=PORT, debug=True)
